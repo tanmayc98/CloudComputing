@@ -10,9 +10,13 @@ from datetime import datetime
 from flask import Flask, Response
 from flask import request
 
+import pymysql
+
 from comment_service.service import CommentService
+from user_service.service import UserService
 
 __comment_service = CommentService()
+__user_service = UserService()
 
 cwd = os.getcwd()
 sys.path.append(cwd)
@@ -22,6 +26,12 @@ print("*** PYHTHONPATH = " + str(sys.path) + "***")
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
+
+
+c_info = {"user": "dbuser",
+          "password": "dbuserdbuser",
+          "cursorclass": pymysql.cursors.DictCursor
+          }
 
 
 application = Flask(__name__,
@@ -115,6 +125,44 @@ def hello():
     return rsp
 
 
+@application.route("/api/users", methods=["GET", "POST"])
+def users():
+
+    req_info = log_and_extract_input("/api/users", None)
+
+    print(req_info)
+
+    try:
+        if req_info["method"] == "GET":
+
+            res = __user_service.query(req_info["query_params"])
+
+            if res is not None:
+                rsp = Response(json.dumps(res, default=str), status=200, content_type="application/json")
+            else:
+                rsp = Response("NOT FOUND", status=404, content_type="text/plain")
+        elif req_info["method"] == "POST":
+
+            res = __user_service.add(req_info["query_params"])
+
+            if res is not None:
+                rsp = Response(json.dumps(res), status=200, content_type="application/json")
+            else:
+                rsp = Response("NOT FOUND", status=404, content_type="text/plain")
+        else:
+            rsp = Response("NOT IMPLEMENTED", status=501, content_type="text/plain")
+    except Exception as e:
+        """
+        Non-specific, broad except clauses are a bad practice/design.
+        """
+        rsp = Response("I'm a teapot", status=418, content_type="text/plain")
+        logger.error("comment: Exception=" + e)
+
+    log_response("/api/comments/<id>", rsp.status, rsp.data, "")
+
+    return rsp
+
+
 @application.route("/api/comments/<id>", methods=["GET", "DELETE", "PUT", "POST"])
 def comment(id):
 
@@ -147,4 +195,4 @@ if __name__ == "__main__":
     # Setting debug to True enables debug output. This line should be
     # removed before deploying a production app.
 
-    application.run("localhost", port=8010)
+    application.run("0.0.0.0", port=5000)
