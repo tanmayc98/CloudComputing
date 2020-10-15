@@ -150,3 +150,65 @@ class UserService:
         conn.close()
 
         return res
+
+    def get_by_user_id(self, user_id):
+
+        conn = pymysql.connect(**self.c_info)
+        cur = conn.cursor()
+
+        q_run = "select * from user_schema.users where `id` = '{}'" \
+            .format(user_id)
+
+        cur.execute(q_run)
+
+        res = cur.fetchall()
+
+        conn.close()
+
+        return res
+
+    def delete_by_user_id(self, user_id):
+
+        conn = pymysql.connect(**self.c_info)
+        cur = conn.cursor()
+
+        res = dict()
+
+        q_run = "delete from user_schema.users where `id` = '{}'" \
+            .format(user_id)
+
+        cur.execute(q_run)
+
+        conn.commit()
+
+        conn.close()
+
+        res["Response"] = "Deleted user with id = {}.".format(user_id)
+
+        return res
+
+    def update_by_user_id(self, user_id, query_params):
+
+        conn = pymysql.connect(**self.c_info)
+        cur = conn.cursor()
+
+        for key in query_params.keys():
+            content = query_params[key]
+
+            q_run = "update user_schema.users SET `{}` = '{}' where `id` = '{}'" \
+                .format(key, content, user_id)
+
+            cur.execute(q_run)
+
+            conn.commit()
+
+        q_run = "select * from user_schema.users where `id` = '{}'" \
+            .format(user_id)
+
+        cur.execute(q_run)
+
+        res = cur.fetchall()
+
+        conn.close()
+
+        return res

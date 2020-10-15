@@ -130,8 +130,6 @@ def users():
 
     req_info = log_and_extract_input("/api/users", None)
 
-    print(req_info)
-
     try:
         if req_info["method"] == "GET":
 
@@ -163,17 +161,31 @@ def users():
     return rsp
 
 
-@application.route("/api/comments/<id>", methods=["GET", "DELETE", "PUT", "POST"])
-def comment(id):
+@application.route("/api/users/<id>", methods=["GET", "DELETE", "PUT"])
+def user(id):
 
-    req_info = log_and_extract_input("/api/comments", id)
+    req_info = log_and_extract_input("/api/users", id)
 
     try:
         if req_info["method"] == "GET":
-            res = __comment_service.get_by_comment_id(id)
+            res = __user_service.get_by_user_id(id)
 
             if res is not None:
-                rsp = Response(json.dumps(res), status=200, content_type="application/json")
+                rsp = Response(json.dumps(res, default=str), status=200, content_type="application/json")
+            else:
+                rsp = Response("NOT FOUND", status=404, content_type="text/plain")
+        elif req_info["method"] == "DELETE":
+            res = __user_service.delete_by_user_id(id)
+
+            if res is not None:
+                rsp = Response(json.dumps(res, default=str), status=200, content_type="application/json")
+            else:
+                rsp = Response("NOT FOUND", status=404, content_type="text/plain")
+        elif req_info["method"] == "PUT":
+            res = __user_service.update_by_user_id(id, req_info["query_params"])
+
+            if res is not None:
+                rsp = Response(json.dumps(res, default=str), status=200, content_type="application/json")
             else:
                 rsp = Response("NOT FOUND", status=404, content_type="text/plain")
         else:
