@@ -2,26 +2,19 @@ import json
 import os
 import sys
 import platform
-import socket
-
 import logging
 from datetime import datetime
-
-from flask import Flask, Response
-from flask import request
-
+from flask import Flask, Response, request
 import pymysql
 
-from comment_service.service import CommentService
 from user_service.service import UserService
+from utilities.authentication import get_token, authorize_credentials
 
-__comment_service = CommentService()
 __user_service = UserService()
 
 cwd = os.getcwd()
 sys.path.append(cwd)
 print("*** PYHTHONPATH = " + str(sys.path) + "***")
-
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
@@ -58,7 +51,7 @@ def log_and_extract_input(method, path_params=None):
 
     log_message = str(datetime.now()) + ": Method " + method
 
-    inputs =  {
+    inputs = {
         "path": path,
         "method": method,
         "path_params": path_params,
@@ -85,7 +78,6 @@ def log_response(method, status, data, txt):
     logger.debug(str(datetime.now()) + ": \n" + json.dumps(msg, indent=2, default=str))
 
 
-# This function performs a basic health check. We will flesh this out.
 @application.route("/service_info", methods=["GET"])
 def service_info():
 
@@ -98,7 +90,7 @@ def service_info():
                 }
 
     if pf == "Darwin":
-        rsp_data["note"]= "For some reason, macOS is called 'Darwin'"
+        rsp_data["note"] = "For some reason, macOS is called 'Darwin'"
 
     # hostname = socket.gethostname()
     # IPAddr = socket.gethostbyname(hostname)
@@ -156,7 +148,7 @@ def users():
         rsp = Response("I'm a teapot", status=418, content_type="text/plain")
         logger.error("comment: Exception=" + e)
 
-    log_response("/api/comments/<id>", rsp.status, rsp.data, "")
+    log_response("/api/users", rsp.status, rsp.data, "")
 
     return rsp
 
@@ -197,14 +189,50 @@ def user(id):
         rsp = Response("I'm a teapot", status=418, content_type="text/plain")
         logger.error("comment: Exception=" + e)
 
-    log_response("/api/comments/<id>", rsp.status, rsp.data, "")
+    log_response("/api/users/<id>", rsp.status, rsp.data, "")
 
     return rsp
 
 
-# run the app.
-if __name__ == "__main__":
-    # Setting debug to True enables debug output. This line should be
-    # removed before deploying a production app.
+@application.route('/api/loginEmail', methods=['POST'])
+def loginEmail():
+    req_info = log_and_extract_input("/api/loginEmail", None)
 
-    application.run("0.0.0.0", port=5000)
+    email = req_info['body']['email']
+    password = req_info['body']['password']
+    input_password = {"password": password}
+    token = get_token(input_password)
+    hashed_password = token.decode("UTF-8")
+
+    flag, res = __user_service.verify(email, hashed_password)
+
+    if flag:
+        returned_info = {"id": res[0]["id"],
+                         "email": res[0]["email"],
+                         "role": res[0]["status"]}
+        token = get_token(returned_info)
+        res = {"User_Found": returned_info,
+               "Returned_Token": token.decode("UTF-8")}
+        rsp = Response(json.dumps(res), status=200, content_type="application/json")
+    else:
+        rsp = Response("You are not authorized. Who are you?", status=404, content_type="text/plain")
+    return rsp
+
+
+@application.route("/api/loginGoogle",  methods=['GET'])
+def loginGoogle():
+    req_info = log_and_extract_input("/api/loginGoogle", None)
+    input_json = req_info['body']
+    with open("inputLoginGoole.json", "w") as outfile:
+        json.dump(input_json, outfile)
+    CLIENT_SECRET = "inputLoginGoole.json"
+    try:
+        credentials = authorize_credentials(CLIENT_SECRET)
+        rsp = Response("Google account login successfully.", status=200, content_type="text/plain")
+    except:
+        rsp = Response("You are not authorized. Who are you?", status=404, content_type="text/plain")
+    return rsp
+
+
+if __name__ == "__main__":
+    application.run("localhost", port=8080, ssl_context='adhoc')

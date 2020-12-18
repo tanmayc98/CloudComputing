@@ -1,6 +1,7 @@
 import pymysql
 import json
 import os
+from utilities.authentication import get_token
 
 
 class UserService:
@@ -61,7 +62,29 @@ class UserService:
             query_last_name = None
 
         if query_last_name is None:
-            result = self.get_all(cur, query_limit, query_offset)
+            query_results = self.get_all(cur, query_limit, query_offset)
+            result = dict()
+            result["data"] = []
+            result["links"] = []
+            for q_res in query_results:
+                temp_dict = {"links": []}
+                temp_dict["links"].append({"rel": "user", "href": "/api/users/{}".format(q_res["id"])})
+                temp_dict["data"] = q_res
+                result["data"].append(temp_dict)
+            result["links"].append({"rel": "self",
+                                    "href": "https://localhost:8080/api/users?limit={}&offset={}".format(query_limit, query_offset)})
+            if (query_offset - query_limit) >= 0:
+                result["links"].append({"rel": "prev",
+                                        "href": "https://localhost:8080/api/users?limit={}&offset={}".format(query_limit, query_offset - query_limit)})
+            else:
+                result["links"].append({"rel": "prev",
+                                        "href": "https://localhost:8080/api/users?limit={}&offset={}".format(query_limit, 0)})
+            if len(query_results) > 0:
+                result["links"].append({"rel": "next",
+                                        "href": "https://localhost:8080/api/users?limit={}&offset={}".format(query_limit, query_offset + query_limit)})
+            else:
+                result["links"].append({"rel": "next",
+                                        "href": "https://localhost:8080/api/users?limit={}&offset={}".format(query_limit, query_offset)})
         else:
             result = self.get_by_last_name(cur, query_limit, query_offset, query_last_name)
 
@@ -116,8 +139,10 @@ class UserService:
             else:
                 insert_email = None
 
-            if "hashed_password" in query_params.keys():
-                insert_hashed_password = query_params["hashed_password"]
+            if "password" in query_params.keys():
+                input_password = {"password": str(query_params["password"])}
+                token = get_token(input_password)
+                insert_hashed_password = token.decode("UTF-8")
             else:
                 insert_hashed_password = None
 
@@ -212,3 +237,22 @@ class UserService:
         conn.close()
 
         return res
+
+    def verify(self, email, hashed_password):
+
+        conn = pymysql.connect(**self.c_info)
+        cur = conn.cursor()
+
+        q_run = "select * from user_schema.users where `email` = '{}' and `hashed_password` = '{}'" \
+            .format(email, str(hashed_password[:45]))
+
+        cur.execute(q_run)
+
+        res = cur.fetchall()
+
+        conn.close()
+
+        if len(res) > 0:
+            return True, res
+        else:
+            return False, None
